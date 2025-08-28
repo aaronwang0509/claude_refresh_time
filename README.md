@@ -5,7 +5,7 @@ A lightweight command-line tool to track your Claude Code Pro token refresh time
 ## Features
 
 - 🕐 Shows next refresh time with countdown
-- 🌍 Multiple timezone support (EST, PST, UTC, etc.)
+- 🌍 Automatic timezone detection (EST/EDT/PST/PDT)
 - ⚙️ Easy calibration when refresh times change
 - 💾 Persistent configuration storage
 - 🪶 Zero dependencies (Python standard library only)
@@ -16,7 +16,7 @@ A lightweight command-line tool to track your Claude Code Pro token refresh time
 # Show next refresh time
 crt
 
-# Output: Next refresh: 2025-08-27 02:00:00 PM EST (in 3 hours 45 mins)
+# Output: Next refresh: 2025-08-27 02:00:00 PM EDT (in 3 hours 45 mins)
 ```
 
 ## Installation
@@ -90,21 +90,16 @@ crt
 ```bash
 # Run directly with Python
 python crt.py
-python crt.py --timezone PST
-python crt.py --calibrate "2025-08-27 3:00 PM EST"
+python crt.py
+python crt.py --calibrate "2025-08-27 3:00 PM"
 ```
 
 ## Usage
 
 ### Basic Commands
 ```bash
-# Show next refresh time (EST by default)
+# Show next refresh time (auto-detects your timezone)
 crt
-
-# Show in different timezone
-crt --timezone PST
-crt -tz UTC
-crt -tz LOCAL
 
 # Show help
 crt --help
@@ -117,43 +112,39 @@ When Claude changes their refresh schedule, recalibrate:
 # Set current time as new refresh point
 crt --calibrate "now"
 
-# Set specific time
-crt --calibrate "2025-08-27 3:00 PM EST"
-crt -c "08/27/2025 15:00 EST"
+# Set specific time (uses your system timezone)
+crt --calibrate "2025-08-27 3:00 PM"
+crt -c "08/27/2025 15:00"
 
 # Supported formats:
-crt -c "2025-08-27 3:00 PM EST"
-crt -c "2025-08-27 15:00 EST"  
-crt -c "08/27/2025 3:00 PM EST"
+crt -c "2025-08-27 3:00 PM"
+crt -c "2025-08-27 15:00"  
+crt -c "08/27/2025 3:00 PM"
 crt -c "now"
 ```
 
-### Supported Timezones
-- `EST` - Eastern Standard Time (default)
-- `EDT` - Eastern Daylight Time
-- `PST` - Pacific Standard Time
-- `PDT` - Pacific Daylight Time
-- `UTC` - Coordinated Universal Time
-- `LOCAL` - Your system timezone
+### Timezone Handling
+CRT automatically detects your system timezone and displays times accordingly:
+- **Eastern Time**: Shows as EST (winter) or EDT (summer)
+- **Pacific Time**: Shows as PST (winter) or PDT (summer)  
+- **Other timezones**: Uses your system's timezone settings
+
+No need to specify timezones manually - everything is handled automatically!
 
 ## Examples
 
 ```bash
 # Basic usage
 $ crt
-Next refresh: 2025-08-27 02:00:00 PM EST (in 3 hours 45 mins)
-
-# Different timezone
-$ crt -tz PST
-Next refresh: 2025-08-27 11:00:00 AM PST (in 3 hours 45 mins)
+Next refresh: 2025-08-27 02:00:00 PM EDT (in 3 hours 45 mins)
 
 # Calibrate to current time
 $ crt -c "now"
-✓ Calibrated refresh time to: 2025-08-27 10:15:00 AM UTC-05:00
+✓ Calibrated refresh time to: 2025-08-27 10:15:00 AM EDT
 
 # Check after calibration
 $ crt
-Next refresh: 2025-08-27 03:15:00 PM EST (in 5 hours 0 mins)
+Next refresh: 2025-08-27 03:15:00 PM EDT (in 5 hours 0 mins)
 ```
 
 ## How It Works
@@ -175,7 +166,7 @@ python crt.py
 
 # Make changes and test
 python crt.py --calibrate "now"
-python crt.py --timezone UTC
+python crt.py
 ```
 
 ## Contributing

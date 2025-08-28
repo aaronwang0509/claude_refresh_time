@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 
-import os
 import sys
 import json
 import argparse
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 CONFIG_FILE = Path.home() / '.crt_config.json'
 
 def load_config():
@@ -35,21 +34,21 @@ def save_config(config):
 def parse_datetime_input(dt_str):
     """Parse various datetime input formats"""
     if dt_str.lower() == 'now':
-        return datetime.now()
+        return datetime.now().astimezone()
     
     # Try common formats
     formats = [
-        '%Y-%m-%d %I:%M %p %Z',      # 2025-08-27 3:00 PM EST
-        '%Y-%m-%d %H:%M %Z',         # 2025-08-27 15:00 EST
-        '%Y-%m-%d %I:%M %p',         # 2025-08-27 3:00 PM (assume local)
-        '%Y-%m-%d %H:%M',            # 2025-08-27 15:00 (assume local)
-        '%m/%d/%Y %I:%M %p %Z',      # 08/27/2025 3:00 PM EST
-        '%m/%d/%Y %H:%M %Z',         # 08/27/2025 15:00 EST
-        '%m/%d/%Y %I:%M %p',         # 08/27/2025 3:00 PM
-        '%m/%d/%Y %H:%M',            # 08/27/2025 15:00
+        '%Y-%m-%d %I:%M %p %Z',      # 2025-08-27 3:00 PM EST (backward compatibility)
+        '%Y-%m-%d %H:%M %Z',         # 2025-08-27 15:00 EST (backward compatibility)
+        '%Y-%m-%d %I:%M %p',         # 2025-08-27 3:00 PM (local timezone)
+        '%Y-%m-%d %H:%M',            # 2025-08-27 15:00 (local timezone)
+        '%m/%d/%Y %I:%M %p %Z',      # 08/27/2025 3:00 PM EST (backward compatibility)
+        '%m/%d/%Y %H:%M %Z',         # 08/27/2025 15:00 EST (backward compatibility)
+        '%m/%d/%Y %I:%M %p',         # 08/27/2025 3:00 PM (local timezone)
+        '%m/%d/%Y %H:%M',            # 08/27/2025 15:00 (local timezone)
     ]
     
-    # Handle timezone abbreviations
+    # Handle timezone abbreviations (for backward compatibility)
     tz_map = {
         'EST': timezone(timedelta(hours=-5)),
         'EDT': timezone(timedelta(hours=-4)),
@@ -61,7 +60,7 @@ def parse_datetime_input(dt_str):
     for fmt in formats:
         try:
             if '%Z' in fmt:
-                # Extract timezone from string
+                # Extract timezone from string (backward compatibility)
                 parts = dt_str.strip().split()
                 if parts and parts[-1].upper() in tz_map:
                     tz_name = parts[-1].upper()
@@ -69,25 +68,14 @@ def parse_datetime_input(dt_str):
                     dt = datetime.strptime(dt_without_tz, fmt.replace(' %Z', ''))
                     return dt.replace(tzinfo=tz_map[tz_name])
             else:
+                # Use local system timezone for formats without timezone
                 dt = datetime.strptime(dt_str, fmt)
-                return dt.replace(tzinfo=timezone(timedelta(hours=-5)))  # Default to EST
+                return dt.replace(tzinfo=datetime.now().astimezone().tzinfo)
         except ValueError:
             continue
     
     raise ValueError(f"Could not parse datetime: {dt_str}")
 
-def get_timezone_by_name(tz_name):
-    """Get timezone object by name"""
-    tz_map = {
-        'EST': timezone(timedelta(hours=-5)),
-        'EDT': timezone(timedelta(hours=-4)),
-        'PST': timezone(timedelta(hours=-8)),
-        'PDT': timezone(timedelta(hours=-7)),
-        'UTC': timezone.utc,
-        'LOCAL': None  # Will use system local timezone
-    }
-    
-    return tz_map.get(tz_name.upper(), timezone(timedelta(hours=-5)))  # Default to EST
 
 def get_next_refresh_time():
     """Calculate next refresh time based on config"""
@@ -114,24 +102,14 @@ def get_next_refresh_time():
     
     return next_refresh
 
-def format_output(next_refresh, output_tz='AUTO'):
+def format_output(next_refresh):
     """Format output with datetime first, then countdown"""
     now = datetime.now(timezone.utc)
     remaining = next_refresh - now
     
-    # Get output timezone
-    if output_tz == 'AUTO':
-        # Auto-detect system timezone
-        next_refresh_local = next_refresh.astimezone()
-        tz_name = next_refresh_local.strftime('%Z')  # System timezone name
-    else:
-        target_tz = get_timezone_by_name(output_tz)
-        if target_tz is None:  # LOCAL timezone
-            next_refresh_local = next_refresh.astimezone()
-            tz_name = next_refresh_local.strftime('%Z')
-        else:
-            next_refresh_local = next_refresh.astimezone(target_tz)
-            tz_name = output_tz.upper()
+    # Always use auto-detected system timezone
+    next_refresh_local = next_refresh.astimezone()
+    tz_name = next_refresh_local.strftime('%Z')  # System timezone name
     
     # Format datetime
     datetime_str = next_refresh_local.strftime('%Y-%m-%d %I:%M:%S %p')
@@ -171,8 +149,8 @@ def calibrate(datetime_str):
         print(f"Error: {e}")
         print("Examples:")
         print("  crt --calibrate 'now'")
-        print("  crt --calibrate '2025-08-27 3:00 PM EST'")
-        print("  crt --calibrate '08/27/2025 15:00 EST'")
+        print("  crt --calibrate '2025-08-27 3:00 PM'")
+        print("  crt --calibrate '08/27/2025 15:00'")
         sys.exit(1)
 
 def main():
@@ -181,18 +159,14 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  crt                              # Show next refresh time (auto-detect timezone)
-  crt --timezone PST               # Show time in PST
+  crt                              # Show next refresh time
   crt --calibrate 'now'            # Set current time as refresh point
-  crt --calibrate '2025-08-27 3:00 PM EST'  # Set specific time
+  crt --calibrate '2025-08-27 3:00 PM'     # Set specific time (uses system timezone)
         """
     )
     
     parser.add_argument('--calibrate', '-c', metavar='DATETIME',
-                       help='Set new refresh time calibration point')
-    parser.add_argument('--timezone', '-tz', default='AUTO',
-                       choices=['AUTO', 'EST', 'EDT', 'PST', 'PDT', 'UTC', 'LOCAL'],
-                       help='Output timezone (default: AUTO - system timezone)')
+                       help='Set new refresh time calibration point (uses system timezone)')
     parser.add_argument('--version', '-v', action='version',
                        version=f'Claude Refresh Time (CRT) v{__version__}')
     
@@ -203,7 +177,7 @@ Examples:
             calibrate(args.calibrate)
         else:
             next_refresh = get_next_refresh_time()
-            print(format_output(next_refresh, args.timezone))
+            print(format_output(next_refresh))
             
     except Exception as e:
         print(f"Error: {e}")
